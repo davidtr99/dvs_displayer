@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>dvs_displayer</name>
+  <version>0.0.0</version>
+  <description>The dvs_displayer package</description>
+  <maintainer email="dtejero@catec.aero">David Tejero Ruiz</maintainer>
+  <license>MIT</license>
+
+  <depend>roscpp</depend>
+  <depend>dvs_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>dynamic_reconfigure</depend>
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <export>
+  </export>
+</package>
