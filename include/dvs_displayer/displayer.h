@@ -10,6 +10,9 @@
 #include <dynamic_reconfigure/server.h>
 #include <dvs_displayer/dvs_displayerConfig.h>
 
+// define macro to enable or disable the unipolar colormap
+#define UNIPOLAR_COLORMAP 0
+
 namespace dvs_displayer
 {
 class Displayer 

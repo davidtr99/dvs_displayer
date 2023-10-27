@@ -159,7 +159,7 @@ namespace dvs_displayer
     }
 
     // unipolar image 
-    if (_color_map_config == ColorMap::VIRIDIS_UNIPOLAR)
+    if (_color_map_config == ColorMap::VIRIDIS_UNIPOLAR && UNIPOLAR_COLORMAP)
     {
       cv::Mat gray_image = cv::Mat(msg->height, msg->width, CV_8U, cv::Scalar(0));
       cv::Mat events = cv::Mat::zeros(msg->height, msg->width, CV_8U);
@@ -192,6 +192,15 @@ namespace dvs_displayer
 
     // use a colormap
     if (_color_map_config == ColorMap::SEISMIC_BIPOLAR)
+    {
+      cv::Mat cm_img;
+      cv::Mat gray_image3ch;
+      cv::cvtColor(gray_image, gray_image3ch, CV_GRAY2BGR);
+      cv::LUT(gray_image3ch, _custom_color_map, cm_img);
+      cv_image.encoding = "bgr8";
+      cv_image.image = cm_img;
+    }
+    else if (_color_map_config == ColorMap::VIRIDIS_UNIPOLAR)
     {
       cv::Mat cm_img;
       cv::Mat gray_image3ch;
