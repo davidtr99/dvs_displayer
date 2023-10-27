@@ -7,8 +7,10 @@ namespace dvs_displayer
   Displayer::Displayer(ros::NodeHandle &nh, ros::NodeHandle nh_private) : _nh(nh)
   {
 
-    // subscribers & publishers
-    _event_sub = _nh.subscribe("events", 1, &Displayer::eventsCallback, this);
+    _events_msgs = dvs_msgs::EventArray::Ptr(new dvs_msgs::EventArray);
+
+    // subscribers & publishers 
+    _event_sub = _nh.subscribe("events", 1, &Displayer::eventsCallback, this, ros::TransportHints().tcpNoDelay()); 
 
     image_transport::ImageTransport it_(_nh);
     _viz_image_pub = it_.advertise("event_image", 1);
@@ -17,6 +19,14 @@ namespace dvs_displayer
     _dynamic_reconfigure_cb = boost::bind(&Displayer::reconfigureCallback, this, _1, _2);
     _dynamic_reconfigure_server.reset(new dynamic_reconfigure::Server<dvs_displayer::dvs_displayerConfig>(nh_private));
     _dynamic_reconfigure_server->setCallback(_dynamic_reconfigure_cb);
+
+    if (_frequency > 0)
+    {
+      _timer = _nh.createTimer(ros::Duration(1.0 / _frequency), &Displayer::timerCallback, this);
+      _timer.start();
+    }
+
+    
   }
 
   Displayer::~Displayer()
@@ -24,10 +34,40 @@ namespace dvs_displayer
     _viz_image_pub.shutdown();
   }
 
+  void Displayer::timerCallback(const ros::TimerEvent &event)
+  {
+    publishImageFromEvents();
+  }
+
+  void Displayer::publishImageFromEvents()
+  {
+    if (_events_msgs->events.size() <= 0) return;
+
+    cv_bridge::CvImage cv_image;
+    cv_image.header.stamp = _events_msgs->events[_events_msgs->events.size() / 2].ts;
+
+    
+    switch (_display_method_config)
+    {
+      case DisplayMethod::HISTOGRAM:
+        displayHistogram(cv_image, _events_msgs);
+        break;
+      case DisplayMethod::TERNARY:
+        displayTernary(cv_image, _events_msgs);
+        break;
+      case DisplayMethod::TIME_SURFACE:
+        displayTimeSurface(cv_image, _events_msgs);
+        break;
+    }
+    _viz_image_pub.publish(cv_image.toImageMsg());
+    _events_msgs->events.clear();
+  }
+
   void Displayer::evaluateParameters(dvs_displayer::dvs_displayerConfig &config)
   {
     std::string color_map_str;
     color_map_str = config.color_map;
+    _frequency = config.frequency;
     
     if (color_map_str == std::string("grayscale"))
     {
@@ -66,6 +106,16 @@ namespace dvs_displayer
       ROS_WARN("Unknown display method '%s'. Using 'histogram' instead.", display_method_str.c_str());
       _display_method_config = DisplayMethod::HISTOGRAM;
     }
+
+    if (_frequency > 0)
+    {
+      _timer = _nh.createTimer(ros::Duration(1.0 / _frequency), &Displayer::timerCallback, this);
+      _timer.start();
+    }
+    else 
+    {
+      _timer.stop();
+    }
   }
 
   void Displayer::add_color_cmap(cv::Mat &lut)
@@ -86,26 +136,16 @@ namespace dvs_displayer
     if (_viz_image_pub.getNumSubscribers() <= 0) return;
     if (msg->events.size() <= 0) return;
 
-    cv_bridge::CvImage cv_image;
-    cv_image.header.stamp = msg->events[msg->events.size() / 2].ts;
+    _events_msgs->header = msg->header;
+    _events_msgs->width = msg->width;
+    _events_msgs->height = msg->height;
+    _events_msgs->events.insert(_events_msgs->events.end(), msg->events.begin(), msg->events.end());
 
-    
-    switch (_display_method_config)
-    {
-      case DisplayMethod::HISTOGRAM:
-        displayHistogram(cv_image, msg);
-        break;
-      case DisplayMethod::TERNARY:
-        displayTernary(cv_image, msg);
-        break;
-      case DisplayMethod::TIME_SURFACE:
-        displayTimeSurface(cv_image, msg);
-        break;
-    }
-    _viz_image_pub.publish(cv_image.toImageMsg());
+    if (_frequency <= 0)
+      publishImageFromEvents();
   }
 
-  void Displayer::displayHistogram(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::ConstPtr &msg)
+  void Displayer::displayHistogram(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::Ptr &msg)
   {
     // on-off event histograms
     cv::Mat on_events = cv::Mat::zeros(msg->height, msg->width, CV_8U);
@@ -167,7 +207,7 @@ namespace dvs_displayer
     }
   }
 
-  void Displayer::displayTernary(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::ConstPtr &msg)
+  void Displayer::displayTernary(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::Ptr &msg)
   {
     // on-off event maps
     cv::Mat on_events = cv::Mat::zeros(msg->height, msg->width, CV_8U);
@@ -202,7 +242,7 @@ namespace dvs_displayer
     }
   }
 
-  void Displayer::displayTimeSurface(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::ConstPtr &msg)
+  void Displayer::displayTimeSurface(cv_bridge::CvImage &cv_image, const dvs_msgs::EventArray::Ptr &msg)
   {
     const double TAU{0.01};
     cv::Mat ts_events = cv::Mat::zeros(msg->height, msg->width, CV_8U);

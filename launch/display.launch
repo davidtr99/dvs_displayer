@@ -1,16 +1,24 @@
 <launch>
+  <arg name="events_topic" default="/dvs/events" />
+  <arg name="image_topic" default="/dvs_displayer/image_raw" />
+  <arg name="rqt_reconfigure" default="false" />
+  <arg name="rqt_image_view" default="false" />
+
   <!-- process events -->
   <node name="dvs_displayer" pkg="dvs_displayer" type="dvs_displayer_node" output="screen">
-    <remap from="events" to="/dvs/events" />
-    <remap from="event_image" to="event_image" />
+    <remap from="events" to="$(arg events_topic)" />
+    <remap from="event_image" to="$(arg image_topic)" />
   </node>
 
   <!-- display using rqt_image_view -->
-  <node name="image_view" pkg="rqt_image_view" type="rqt_image_view">
-  	<remap from="image" to="event_image"/>
-  </node>
+  <group if="$(arg rqt_image_view)">
+    <node name="image_view" pkg="rqt_image_view" type="rqt_image_view"  args= "$(arg image_topic)">
+      <remap from="image" to="$(arg image_topic)"/>
+    </node>
+  </group>
 
   <!-- rqt dynamic reconfigure-->
-  <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" />
-
+  <group if="$(arg rqt_reconfigure)">
+    <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure" />
+  </group>
 </launch>
